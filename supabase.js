@@ -1,19 +1,33 @@
 /**
- * supabase.js — Configuración del cliente Supabase
- * Manejar auth, database y realtime
+ * supabase.js — Cliente Supabase con autenticación completa
+ * Auth (email/password), database, realtime
  */
 
-const SUPABASE_URL = 'https://fjsfyosuoehdyhmwoupd.supabase.co';
-const SUPABASE_ANON_KEY = 'sb_publishable_jrBuYE2_z8sdedxXPGnR5A_-R9dJSC2';
+const SUPABASE_URL = 'https://YOUR_PROJECT.supabase.co';
+const SUPABASE_ANON_KEY = 'YOUR_ANON_KEY';
 
 let supabaseClient = null;
 let supabaseReady = false;
+let currentUser = null; // { id, email, username }
 
 function initSupabase() {
   if (typeof window.supabase !== 'undefined' && window.supabase.createClient) {
     supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
     supabaseReady = true;
     console.log('Supabase inicializado');
+
+    // Escuchar cambios de sesión
+    supabaseClient.auth.onAuthStateChange(async (event, session) => {
+      if (session?.user) {
+        await loadUserProfile(session.user.id);
+      } else {
+        currentUser = null;
+      }
+      updateAuthUI();
+    });
+
+    // Restaurar sesión existente
+    restoreSession();
     return true;
   }
   console.warn('Supabase SDK no disponible — modo offline');
@@ -25,25 +39,152 @@ function isSupabaseReady() {
     SUPABASE_URL !== 'https://YOUR_PROJECT.supabase.co';
 }
 
-// ─── Auth ───────────────────────────────────────────
-async function signUpAnon(username) {
-  if (!isSupabaseReady()) return { player: getLocalPlayer(username) };
-  try {
-    const { data, error } = await supabaseClient
+function isLoggedIn() {
+  return currentUser !== null && currentUser.id && !currentUser.id.startsWith('local_');
+}
+
+// ─── Auth: Registro ─────────────────────────────────
+async function signUp(email, password, username) {
+  if (!isSupabaseReady()) return { error: 'Supabase no conectado' };
+
+  // Verificar que el username no exista
+  const { data: existing } = await supabaseClient
+    .from('players')
+    .select('id')
+    .eq('username', username)
+    .single();
+
+  if (existing) return { error: 'Ese nombre de usuario ya está en uso' };
+
+  // Crear cuenta en Supabase Auth
+  const { data, error } = await supabaseClient.auth.signUp({
+    email,
+    password,
+    options: {
+      data: { username }
+    }
+  });
+
+  if (error) {
+    if (error.message.includes('already registered')) {
+      return { error: 'Este email ya tiene una cuenta' };
+    }
+    return { error: error.message };
+  }
+
+  if (data.user) {
+    // Crear perfil en tabla players
+    await supabaseClient
       .from('players')
-      .insert([{ username }])
-      .select()
-      .single();
-    if (error) throw error;
-    localStorage.setItem('wordle_player_id', data.id);
+      .insert([{ id: data.user.id, username, email }]);
+
+    // Crear entrada en leaderboard
+    await supabaseClient
+      .from('leaderboard')
+      .insert([{ player_id: data.user.id, score: 0, wins: 0, losses: 0 }]);
+
+    currentUser = { id: data.user.id, email, username };
+    localStorage.setItem('wordle_player_id', data.user.id);
     localStorage.setItem('wordle_username', username);
-    return { player: data };
+
+    return { user: currentUser };
+  }
+  return { error: 'Error desconocido al registrarse' };
+}
+
+// ─── Auth: Login ────────────────────────────────────
+async function logIn(email, password) {
+  if (!isSupabaseReady()) return { error: 'Supabase no conectado' };
+
+  const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password });
+
+  if (error) {
+    if (error.message.includes('Invalid login')) {
+      return { error: 'Email o contraseña incorrectos' };
+    }
+    return { error: error.message };
+  }
+
+  if (data.user) {
+    await loadUserProfile(data.user.id);
+    return { user: currentUser };
+  }
+  return { error: 'Error desconocido al iniciar sesión' };
+}
+
+// ─── Auth: Logout ───────────────────────────────────
+async function logOut() {
+  if (isSupabaseReady()) {
+    await supabaseClient.auth.signOut();
+  }
+  currentUser = null;
+  localStorage.removeItem('wordle_player_id');
+  localStorage.removeItem('wordle_username');
+  updateAuthUI();
+  showMenu();
+}
+
+// ─── Auth: Restaurar sesión ─────────────────────────
+async function restoreSession() {
+  if (!isSupabaseReady()) return;
+  try {
+    const { data: { session } } = await supabaseClient.auth.getSession();
+    if (session?.user) {
+      await loadUserProfile(session.user.id);
+      updateAuthUI();
+    }
   } catch (e) {
-    console.error('Error creando jugador:', e);
-    return { player: getLocalPlayer(username) };
+    console.error('Error restaurando sesión:', e);
   }
 }
 
+// ─── Cargar perfil ──────────────────────────────────
+async function loadUserProfile(userId) {
+  if (!isSupabaseReady()) return;
+  try {
+    const { data } = await supabaseClient
+      .from('players')
+      .select('*')
+      .eq('id', userId)
+      .single();
+
+    if (data) {
+      currentUser = { id: data.id, email: data.email, username: data.username };
+      localStorage.setItem('wordle_player_id', data.id);
+      localStorage.setItem('wordle_username', data.username);
+    }
+  } catch (e) {
+    console.error('Error cargando perfil:', e);
+  }
+}
+
+// ─── Actualizar username ────────────────────────────
+async function updateUsername(newUsername) {
+  if (!isLoggedIn() || !isSupabaseReady()) return { error: 'No has iniciado sesión' };
+
+  const { data: existing } = await supabaseClient
+    .from('players')
+    .select('id')
+    .eq('username', newUsername)
+    .neq('id', currentUser.id)
+    .single();
+
+  if (existing) return { error: 'Ese nombre ya está en uso' };
+
+  const { error } = await supabaseClient
+    .from('players')
+    .update({ username: newUsername })
+    .eq('id', currentUser.id);
+
+  if (error) return { error: error.message };
+
+  currentUser.username = newUsername;
+  localStorage.setItem('wordle_username', newUsername);
+  updateAuthUI();
+  return { success: true };
+}
+
+// ─── Player helpers ─────────────────────────────────
 function getLocalPlayer(username) {
   let id = localStorage.getItem('wordle_player_id');
   if (!id) {
@@ -51,14 +192,17 @@ function getLocalPlayer(username) {
     localStorage.setItem('wordle_player_id', id);
   }
   if (username) localStorage.setItem('wordle_username', username);
-  return {
-    id,
-    username: username || localStorage.getItem('wordle_username') || 'Jugador'
-  };
+  return { id, username: username || localStorage.getItem('wordle_username') || 'Invitado' };
 }
 
 function getCurrentPlayer() {
+  if (isLoggedIn()) return currentUser;
   return getLocalPlayer();
+}
+
+function getCurrentUsername() {
+  if (isLoggedIn()) return currentUser.username;
+  return localStorage.getItem('wordle_username') || 'Invitado';
 }
 
 // ─── Leaderboard ────────────────────────────────────
@@ -72,6 +216,7 @@ async function fetchLeaderboard(limit = 20) {
       .limit(limit);
     if (error) throw error;
     return data.map(r => ({
+      player_id: r.player_id,
       username: r.players?.username || 'Anónimo',
       score: r.score,
       wins: r.wins,
@@ -85,44 +230,27 @@ async function fetchLeaderboard(limit = 20) {
 
 function getLocalLeaderboard() {
   const stats = JSON.parse(localStorage.getItem('wordle_stats') || '{}');
-  const username = localStorage.getItem('wordle_username') || 'Tú';
-  return [{
-    username,
-    score: stats.totalScore || 0,
-    wins: stats.wins || 0,
-    losses: stats.losses || 0
-  }];
+  return [{ username: getCurrentUsername(), score: stats.totalScore || 0, wins: stats.wins || 0, losses: stats.losses || 0 }];
 }
 
 async function updateLeaderboard(scoreData) {
-  if (!isSupabaseReady()) return;
-  const playerId = localStorage.getItem('wordle_player_id');
-  if (!playerId || playerId.startsWith('local_')) return;
+  if (!isSupabaseReady() || !isLoggedIn()) return;
+  const playerId = currentUser.id;
   try {
     const { data: existing } = await supabaseClient
-      .from('leaderboard')
-      .select('*')
-      .eq('player_id', playerId)
-      .single();
+      .from('leaderboard').select('*').eq('player_id', playerId).single();
 
     if (existing) {
-      await supabaseClient
-        .from('leaderboard')
-        .update({
-          score: existing.score + (scoreData.score || 0),
-          wins: existing.wins + (scoreData.win ? 1 : 0),
-          losses: existing.losses + (scoreData.win ? 0 : 1)
-        })
-        .eq('player_id', playerId);
+      await supabaseClient.from('leaderboard').update({
+        score: existing.score + (scoreData.score || 0),
+        wins: existing.wins + (scoreData.win ? 1 : 0),
+        losses: existing.losses + (scoreData.win ? 0 : 1)
+      }).eq('player_id', playerId);
     } else {
-      await supabaseClient
-        .from('leaderboard')
-        .insert([{
-          player_id: playerId,
-          score: scoreData.score || 0,
-          wins: scoreData.win ? 1 : 0,
-          losses: scoreData.win ? 0 : 1
-        }]);
+      await supabaseClient.from('leaderboard').insert([{
+        player_id: playerId, score: scoreData.score || 0,
+        wins: scoreData.win ? 1 : 0, losses: scoreData.win ? 0 : 1
+      }]);
     }
   } catch (e) {
     console.error('Error actualizando leaderboard:', e);
@@ -132,19 +260,13 @@ async function updateLeaderboard(scoreData) {
 // ─── Multiplayer ────────────────────────────────────
 async function createMatch(word) {
   if (!isSupabaseReady()) return null;
-  const playerId = localStorage.getItem('wordle_player_id');
+  const playerId = getCurrentPlayer().id;
   const roomCode = Math.random().toString(36).slice(2, 8).toUpperCase();
   try {
     const { data, error } = await supabaseClient
       .from('matches')
-      .insert([{
-        player1: playerId,
-        word,
-        room_code: roomCode,
-        status: 'waiting'
-      }])
-      .select()
-      .single();
+      .insert([{ player1: playerId, word, room_code: roomCode, status: 'waiting' }])
+      .select().single();
     if (error) throw error;
     return { match: data, roomCode };
   } catch (e) {
@@ -155,22 +277,18 @@ async function createMatch(word) {
 
 async function joinMatch(roomCode) {
   if (!isSupabaseReady()) return null;
-  const playerId = localStorage.getItem('wordle_player_id');
+  const playerId = getCurrentPlayer().id;
   try {
     const { data: match, error: findErr } = await supabaseClient
-      .from('matches')
-      .select('*')
+      .from('matches').select('*')
       .eq('room_code', roomCode.toUpperCase())
-      .eq('status', 'waiting')
-      .single();
+      .eq('status', 'waiting').single();
     if (findErr || !match) return null;
 
     const { data, error } = await supabaseClient
       .from('matches')
       .update({ player2: playerId, status: 'playing' })
-      .eq('id', match.id)
-      .select()
-      .single();
+      .eq('id', match.id).select().single();
     if (error) throw error;
     return { match: data };
   } catch (e) {
@@ -183,52 +301,26 @@ function subscribeToMatch(matchId, callback) {
   if (!isSupabaseReady()) return null;
   return supabaseClient
     .channel(`match_${matchId}`)
-    .on('postgres_changes', {
-      event: '*',
-      schema: 'public',
-      table: 'moves',
-      filter: `match_id=eq.${matchId}`
-    }, payload => callback(payload))
-    .on('postgres_changes', {
-      event: 'UPDATE',
-      schema: 'public',
-      table: 'matches',
-      filter: `id=eq.${matchId}`
-    }, payload => callback(payload))
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'moves', filter: `match_id=eq.${matchId}` }, payload => callback(payload))
+    .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'matches', filter: `id=eq.${matchId}` }, payload => callback(payload))
     .subscribe();
 }
 
 async function sendMove(matchId, guess, attemptNumber) {
   if (!isSupabaseReady()) return;
-  const playerId = localStorage.getItem('wordle_player_id');
+  const playerId = getCurrentPlayer().id;
   try {
-    await supabaseClient
-      .from('moves')
-      .insert([{
-        match_id: matchId,
-        player_id: playerId,
-        guess,
-        attempt_number: attemptNumber
-      }]);
-  } catch (e) {
-    console.error('Error enviando movimiento:', e);
-  }
+    await supabaseClient.from('moves').insert([{ match_id: matchId, player_id: playerId, guess, attempt_number: attemptNumber }]);
+  } catch (e) { console.error('Error enviando movimiento:', e); }
 }
 
 async function endMatch(matchId, winnerId) {
   if (!isSupabaseReady()) return;
   try {
-    await supabaseClient
-      .from('matches')
-      .update({ winner: winnerId, status: 'finished' })
-      .eq('id', matchId);
-  } catch (e) {
-    console.error('Error finalizando partida:', e);
-  }
+    await supabaseClient.from('matches').update({ winner: winnerId, status: 'finished' }).eq('id', matchId);
+  } catch (e) { console.error('Error finalizando partida:', e); }
 }
 
 function unsubscribeFromMatch(channel) {
-  if (channel && isSupabaseReady()) {
-    supabaseClient.removeChannel(channel);
-  }
+  if (channel && isSupabaseReady()) supabaseClient.removeChannel(channel);
 }

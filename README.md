@@ -23,13 +23,23 @@ El juego funciona **sin Supabase** (modo offline). Para habilitar multijugador y
 
 ### 1. Crear proyecto en [supabase.com](https://supabase.com)
 
-### 2. Ejecutar SQL para crear las tablas
+### 2. Configurar autenticación
+
+En Supabase, ve a **Authentication → Providers → Email** y:
+
+- Activa el proveedor de email
+- **Desactiva "Confirm email"** (para que los usuarios puedan jugar al instante)
+
+### 3. Ejecutar SQL para crear las tablas
+
+En **SQL Editor**, ejecuta:
 
 ```sql
--- Jugadores
+-- Jugadores (vinculados a Supabase Auth)
 CREATE TABLE players (
-  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-  username TEXT NOT NULL,
+  id UUID PRIMARY KEY,  -- mismo ID que auth.users
+  username TEXT NOT NULL UNIQUE,
+  email TEXT,
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 

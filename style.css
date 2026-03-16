@@ -942,3 +942,246 @@ body {
 .install-banner p { font-size: 0.85rem; flex: 1; }
 
 .install-banner .btn { width: auto; padding: 8px 16px; }
+
+/* ─── Auth / User ──────────────────────────────── */
+#user-area {
+  display: flex;
+  align-items: center;
+}
+
+.user-badge {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px 4px 4px;
+  background: var(--bg-alt);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  cursor: pointer;
+  transition: all 0.15s;
+  font-family: var(--font-body);
+}
+
+.user-badge:hover {
+  border-color: var(--accent);
+  background: var(--surface);
+}
+
+.user-avatar {
+  width: 26px;
+  height: 26px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--accent);
+  color: var(--accent-text);
+  border-radius: 50%;
+  font-size: 0.75rem;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.user-name {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--text);
+  max-width: 80px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ─── Menu user area ───────────────────────────── */
+#menu-user-area {
+  margin-bottom: 8px;
+}
+
+.menu-user-badge {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 20px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+}
+
+.menu-user-avatar {
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--accent);
+  color: var(--accent-text);
+  border-radius: 50%;
+  font-size: 1rem;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.menu-user-name {
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.menu-auth-btn {
+  width: auto;
+  padding: 10px 24px;
+}
+
+/* ─── Auth form ────────────────────────────────── */
+.auth-form {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.form-label {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.form-input {
+  padding: 11px 14px;
+  background: var(--bg-alt);
+  color: var(--text);
+  border: 2px solid var(--border);
+  border-radius: var(--radius);
+  font-family: var(--font-body);
+  font-size: 0.95rem;
+  outline: none;
+  transition: border-color 0.2s;
+  width: 100%;
+}
+
+.form-input:focus {
+  border-color: var(--accent);
+}
+
+.form-input::placeholder {
+  color: var(--text-muted);
+  opacity: 0.6;
+}
+
+.form-error {
+  font-size: 0.8rem;
+  color: #d94444;
+  min-height: 1.1em;
+}
+
+.form-row {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+}
+
+.form-row .form-input {
+  flex: 1;
+}
+
+.btn-sm {
+  padding: 10px 16px;
+  width: auto;
+  white-space: nowrap;
+}
+
+.auth-switch {
+  text-align: center;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  margin-top: 4px;
+}
+
+.auth-switch a {
+  color: var(--accent);
+  text-decoration: none;
+  font-weight: 600;
+}
+
+.auth-switch a:hover {
+  text-decoration: underline;
+}
+
+/* ─── Profile modal ────────────────────────────── */
+.profile-avatar-lg {
+  width: 56px;
+  height: 56px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--accent);
+  color: var(--accent-text);
+  border-radius: 50%;
+  font-size: 1.6rem;
+  font-weight: 700;
+  margin: 0 auto 8px;
+}
+
+.profile-email {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+
+.profile-section {
+  margin: 20px 0;
+  padding-top: 16px;
+  border-top: 1px solid var(--border);
+}
+
+.profile-section-title {
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--text-muted);
+  margin-bottom: 10px;
+}
+
+.btn-danger {
+  color: #d94444;
+}
+
+.btn-danger:hover {
+  background: rgba(217, 68, 68, 0.1);
+}
+
+.btn-primary.btn-danger {
+  background: #d94444;
+  color: #fff;
+}
+
+.btn-primary.btn-danger:hover {
+  background: #c03030;
+}
+
+/* ─── Leaderboard extras ───────────────────────── */
+.leaderboard-me {
+  background: var(--bg-alt);
+  border-radius: var(--radius);
+  padding-left: 8px;
+  padding-right: 8px;
+}
+
+.leaderboard-hint {
+  text-align: center;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  margin-top: 16px;
+  font-style: italic;
+}
+
+.end-hint {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  font-style: italic;
+  margin-top: 4px;
+}

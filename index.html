@@ -28,6 +28,9 @@
       <button class="icon-btn" onclick="showLeaderboardModal()" aria-label="Ranking" title="Ranking">🏆</button>
       <button class="icon-btn" onclick="showStatsModal()" aria-label="Estadísticas" title="Estadísticas">📊</button>
       <button class="icon-btn" onclick="showSettingsModal()" aria-label="Ajustes" title="Ajustes">⚙️</button>
+      <div id="user-area">
+        <button class="icon-btn" onclick="showAuthModal('login')" aria-label="Cuenta" title="Iniciar sesión">👤</button>
+      </div>
     </div>
   </header>
 
@@ -41,6 +44,7 @@
   <main class="menu-screen" id="menu-screen">
     <div class="menu-logo">Wordle <span>ES</span></div>
     <p class="menu-subtitle">Adivina la palabra en 6 intentos</p>
+    <div id="menu-user-area"></div>
     <div class="menu-buttons">
       <button class="menu-btn" onclick="startDaily()">
         <span class="menu-icon">📅</span>
