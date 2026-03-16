@@ -11,6 +11,7 @@ const ASSETS = [
   '/script.js',
   '/game.js',
   '/multiplayer.js',
+  '/discord.js',
   '/supabase.js',
   '/words.js',
   '/stats.js',
@@ -41,6 +42,7 @@ self.addEventListener('activate', (event) => {
 self.addEventListener('fetch', (event) => {
   // No cachear peticiones a Supabase u otras APIs
   if (event.request.url.includes('supabase') ||
+      event.request.url.includes('discord.com') ||
       event.request.url.includes('api') ||
       event.request.url.includes('cdn.jsdelivr.net')) {
     event.respondWith(fetch(event.request).catch(() => caches.match(event.request)));
