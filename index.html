@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <meta name="theme-color" content="#fafaf8" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#121213" media="(prefers-color-scheme: dark)">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="description" content="Wordle en español — Adivina la palabra diaria en 6 intentos. Modo diario, infinito y 1vs1 online.">
+
+  <title>Wordle Español</title>
+
+  <link rel="manifest" href="manifest.json">
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🟩</text></svg>">
+  <link rel="apple-touch-icon" href="icons/icon-192.png">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <!-- Header -->
+  <header class="header">
+    <div class="header-left">
+      <button class="icon-btn" onclick="hideGame(); hideAllModals(); showMenu()" aria-label="Menú" title="Menú">☰</button>
+    </div>
+    <h1 class="header-title">Wordle <span>ES</span></h1>
+    <div class="header-right">
+      <button class="icon-btn" onclick="showLeaderboardModal()" aria-label="Ranking" title="Ranking">🏆</button>
+      <button class="icon-btn" onclick="showStatsModal()" aria-label="Estadísticas" title="Estadísticas">📊</button>
+      <button class="icon-btn" onclick="showSettingsModal()" aria-label="Ajustes" title="Ajustes">⚙️</button>
+    </div>
+  </header>
+
+  <!-- Opponent bar (1v1) -->
+  <div class="opponent-bar" id="opponent-bar"></div>
+
+  <!-- Toast container -->
+  <div class="toast-container" id="toast-container"></div>
+
+  <!-- Menu screen -->
+  <main class="menu-screen" id="menu-screen">
+    <div class="menu-logo">Wordle <span>ES</span></div>
+    <p class="menu-subtitle">Adivina la palabra en 6 intentos</p>
+    <div class="menu-buttons">
+      <button class="menu-btn" onclick="startDaily()">
+        <span class="menu-icon">📅</span>
+        <span class="menu-text">
+          Diario
+          <small>Una palabra al día</small>
+        </span>
+      </button>
+      <button class="menu-btn" onclick="startInfinite()">
+        <span class="menu-icon">♾️</span>
+        <span class="menu-text">
+          Infinito
+          <small>Partidas ilimitadas</small>
+        </span>
+      </button>
+      <button class="menu-btn" onclick="startVersus()">
+        <span class="menu-icon">⚔️</span>
+        <span class="menu-text">
+          1 vs 1 Online
+          <small>Compite en tiempo real</small>
+        </span>
+      </button>
+      <button class="menu-btn" onclick="showLeaderboardModal()">
+        <span class="menu-icon">🏆</span>
+        <span class="menu-text">
+          Ranking
+          <small>Clasificación global</small>
+        </span>
+      </button>
+    </div>
+  </main>
+
+  <!-- Game area -->
+  <div class="game-container" id="game-area" style="display:none">
+    <div class="board" id="board"></div>
+    <div class="keyboard" id="keyboard"></div>
+  </div>
+
+  <!-- Modal overlay -->
+  <div class="modal-overlay" id="modal-overlay" onclick="if(event.target===this)hideAllModals()">
+    <div class="modal-content" id="modal-content"></div>
+  </div>
+
+  <!-- Scripts -->
+  <script src="words.js"></script>
+  <script src="supabase.js"></script>
+  <script src="stats.js"></script>
+  <script src="game.js"></script>
+  <script src="multiplayer.js"></script>
+  <script src="script.js"></script>
+
+  <!-- Supabase SDK (CDN) — carga async, funciona sin ella -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2" async defer
+          onload="initSupabase()" onerror="console.log('Supabase SDK no disponible — modo offline')"></script>
+</body>
+</html>
