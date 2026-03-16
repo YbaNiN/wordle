@@ -3,8 +3,8 @@
  * Auth (email/password), database, realtime
  */
 
-const SUPABASE_URL = 'https://YOUR_PROJECT.supabase.co';
-const SUPABASE_ANON_KEY = 'YOUR_ANON_KEY';
+const SUPABASE_URL = 'https://fjsfyosuoehdyhmwoupd.supabase.co';
+const SUPABASE_ANON_KEY = 'sb_publishable_jrBuYE2_z8sdedxXPGnR5A_-R9dJSC2';
 
 let supabaseClient = null;
 let supabaseReady = false;
