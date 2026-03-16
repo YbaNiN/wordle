@@ -22,6 +22,10 @@
   <header class="header">
     <div class="header-left">
       <button class="icon-btn" onclick="hideGame(); hideAllModals(); showMenu()" aria-label="Menú" title="Menú">☰</button>
+      <button class="icon-btn" onclick="showDiscordForm('peticion')" aria-label="Peticiones" title="Peticiones">💡</button>
+      <button class="icon-btn" onclick="showDiscordForm('sugerencia')" aria-label="Sugerencias" title="Sugerencias">💬</button>
+      <button class="icon-btn" onclick="showDiscordForm('reporte')" aria-label="Reportes" title="Reportes">🐛</button>
+      <button class="icon-btn" onclick="showDiscordForm('contacto')" aria-label="Contacto" title="Contacto">✉️</button>
     </div>
     <h1 class="header-title">Wordle <span>ES</span></h1>
     <div class="header-right">
@@ -72,38 +76,6 @@
         <span class="menu-text">
           Ranking
           <small>Clasificación global</small>
-        </span>
-      </button>
-    </div>
-    <div class="menu-divider"></div>
-    <p class="menu-section-title">Comunidad</p>
-    <div class="menu-buttons menu-buttons-community">
-      <button class="menu-btn" onclick="showDiscordForm('peticion')">
-        <span class="menu-icon">💡</span>
-        <span class="menu-text">
-          Peticiones
-          <small>Solicita funciones nuevas</small>
-        </span>
-      </button>
-      <button class="menu-btn" onclick="showDiscordForm('sugerencia')">
-        <span class="menu-icon">💬</span>
-        <span class="menu-text">
-          Sugerencias
-          <small>Comparte tus ideas</small>
-        </span>
-      </button>
-      <button class="menu-btn" onclick="showDiscordForm('reporte')">
-        <span class="menu-icon">🐛</span>
-        <span class="menu-text">
-          Reportes
-          <small>Reporta errores o bugs</small>
-        </span>
-      </button>
-      <button class="menu-btn" onclick="showDiscordForm('contacto')">
-        <span class="menu-icon">✉️</span>
-        <span class="menu-text">
-          Contacto
-          <small>Escríbenos</small>
         </span>
       </button>
     </div>
