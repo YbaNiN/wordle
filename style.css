@@ -531,7 +531,58 @@ body {
   flex-direction: column;
   gap: 10px;
   width: 100%;
-  max-width: 280px;
+  max-width: 300px;
+}
+
+/* Feedback buttons row in menu */
+.menu-feedback {
+  display: none;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 8px;
+  width: 100%;
+  max-width: 300px;
+}
+
+.menu-feedback-btn {
+  padding: 8px 14px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  color: var(--text-muted);
+  font-family: var(--font-body);
+  font-size: 0.75rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.menu-feedback-btn:hover {
+  border-color: var(--accent);
+  color: var(--text);
+}
+
+@media (max-width: 599px) {
+  .menu-feedback {
+    display: flex;
+  }
+
+  .menu-screen {
+    padding: 24px 20px;
+    gap: 12px;
+    justify-content: flex-start;
+    padding-top: 10vh;
+  }
+
+  .menu-logo {
+    font-size: 1.9rem;
+  }
+
+  .menu-subtitle {
+    margin-bottom: 12px;
+    font-size: 0.85rem;
+  }
 }
 
 .menu-btn {
@@ -902,12 +953,49 @@ body {
 .modal-content::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
 
 /* ─── Responsive ───────────────────────────────── */
+
+/* Móviles: ocultar botones secundarios del header (💡💬🐛✉️) */
+@media (max-width: 599px) {
+  .header-left .icon-btn:not(:first-child) {
+    display: none;
+  }
+
+  .header {
+    padding: 0 8px;
+  }
+
+  .header-left, .header-right {
+    gap: 2px;
+  }
+
+  .icon-btn {
+    width: 34px;
+    height: 34px;
+    font-size: 1.05rem;
+  }
+
+  .header-title {
+    font-size: 1rem;
+  }
+}
+
 @media (max-width: 380px) {
   :root {
     --tile-size: 50px;
     --key-height: 50px;
     --gap: 4px;
   }
+
+  .header-title {
+    font-size: 0.9rem;
+  }
+
+  .icon-btn {
+    width: 32px;
+    height: 32px;
+    font-size: 1rem;
+  }
+
   .key { min-width: 24px; font-size: 0.7rem; }
   .key.wide { min-width: 40px; }
 }
@@ -985,7 +1073,7 @@ body {
   font-size: 0.8rem;
   font-weight: 600;
   color: var(--text);
-  max-width: 80px;
+  max-width: 60px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
