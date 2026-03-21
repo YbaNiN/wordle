@@ -9,6 +9,7 @@ const SUPABASE_ANON_KEY = 'sb_publishable_jrBuYE2_z8sdedxXPGnR5A_-R9dJSC2';
 let supabaseClient = null;
 let supabaseReady = false;
 let currentUser = null; // { id, email, username }
+let _signingUp = false; // Flag para evitar race condition en onAuthStateChange
 
 function initSupabase() {
   if (typeof window.supabase !== 'undefined' && window.supabase.createClient) {
@@ -18,6 +19,7 @@ function initSupabase() {
 
     // Escuchar cambios de sesión
     supabaseClient.auth.onAuthStateChange(async (event, session) => {
+      if (_signingUp) return; // Evitar race condition: signUp maneja el perfil
       if (session?.user) {
         await loadUserProfile(session.user.id);
       } else {
@@ -46,15 +48,16 @@ function isLoggedIn() {
 // ─── Auth: Registro ─────────────────────────────────
 async function signUp(email, password, username) {
   if (!isSupabaseReady()) return { error: 'Supabase no conectado' };
+  _signingUp = true;
 
   // Verificar que el username no exista
   const { data: existing } = await supabaseClient
     .from('players')
     .select('id')
     .eq('username', username)
-    .single();
+    .maybeSingle();
 
-  if (existing) return { error: 'Ese nombre de usuario ya está en uso' };
+  if (existing) { _signingUp = false; return { error: 'Ese nombre de usuario ya está en uso' }; }
 
   // Crear cuenta en Supabase Auth
   const { data, error } = await supabaseClient.auth.signUp({
@@ -66,6 +69,7 @@ async function signUp(email, password, username) {
   });
 
   if (error) {
+    _signingUp = false;
     if (error.message.includes('already registered')) {
       return { error: 'Este email ya tiene una cuenta' };
     }
@@ -87,8 +91,10 @@ async function signUp(email, password, username) {
     localStorage.setItem('wordle_player_id', data.user.id);
     localStorage.setItem('wordle_username', username);
 
+    _signingUp = false;
     return { user: currentUser };
   }
+  _signingUp = false;
   return { error: 'Error desconocido al registrarse' };
 }
 
@@ -146,7 +152,7 @@ async function loadUserProfile(userId) {
       .from('players')
       .select('*')
       .eq('id', userId)
-      .single();
+      .maybeSingle();
 
     if (data) {
       currentUser = { id: data.id, email: data.email, username: data.username };
@@ -167,7 +173,7 @@ async function updateUsername(newUsername) {
     .select('id')
     .eq('username', newUsername)
     .neq('id', currentUser.id)
-    .single();
+    .maybeSingle();
 
   if (existing) return { error: 'Ese nombre ya está en uso' };
 
@@ -238,7 +244,7 @@ async function updateLeaderboard(scoreData) {
   const playerId = currentUser.id;
   try {
     const { data: existing } = await supabaseClient
-      .from('leaderboard').select('*').eq('player_id', playerId).single();
+      .from('leaderboard').select('*').eq('player_id', playerId).maybeSingle();
 
     if (existing) {
       await supabaseClient.from('leaderboard').update({
@@ -282,7 +288,7 @@ async function joinMatch(roomCode) {
     const { data: match, error: findErr } = await supabaseClient
       .from('matches').select('*')
       .eq('room_code', roomCode.toUpperCase())
-      .eq('status', 'waiting').single();
+      .eq('status', 'waiting').maybeSingle();
     if (findErr || !match) return null;
 
     const { data, error } = await supabaseClient
