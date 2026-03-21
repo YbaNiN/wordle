@@ -122,7 +122,7 @@ async function signUp(email, password, username) {
     // Crear perfil en tabla players (upsert por si existe parcialmente)
     const { data: playerData, error: playerErr } = await supabaseClient
       .from('players')
-      .upsert([{ id: data.user.id, username, email }], { onConflict: 'id' })
+      .upsert([{ id: data.user.id, username }], { onConflict: 'id' })
       .select();
 
     console.log('[signUp] Players result:', { data: playerData, error: playerErr?.message });
