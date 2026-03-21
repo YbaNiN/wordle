@@ -11,22 +11,51 @@ let supabaseReady = false;
 let currentUser = null; // { id, email, username }
 let _signingUp = false; // Flag para evitar race condition en onAuthStateChange
 
+// Utilidad: timeout para promesas que pueden colgar
+function withTimeout(promise, ms = 10000) {
+  return Promise.race([
+    promise,
+    new Promise((_, reject) =>
+      setTimeout(() => reject(new Error('Tiempo de espera agotado')), ms)
+    )
+  ]);
+}
+
 function initSupabase() {
   if (supabaseReady) return true; // Ya inicializado — evitar doble init
   if (typeof window.supabase !== 'undefined' && window.supabase.createClient) {
+
+    // Limpiar tokens de sesiones de usuarios borrados que causan locks
+    try {
+      const storageKey = 'sb-fjsfyosuoehdyhmwoupd-auth-token';
+      const raw = localStorage.getItem(storageKey);
+      if (raw) {
+        const session = JSON.parse(raw);
+        // Si el token expiró hace más de 7 días, limpiar
+        if (session.expires_at && session.expires_at * 1000 < Date.now() - 7 * 86400000) {
+          localStorage.removeItem(storageKey);
+          console.log('Sesión expirada eliminada');
+        }
+      }
+    } catch (e) { /* ignorar */ }
+
     supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
     supabaseReady = true;
     console.log('Supabase inicializado');
 
     // Escuchar cambios de sesión
     supabaseClient.auth.onAuthStateChange(async (event, session) => {
-      if (_signingUp) return; // Evitar race condition: signUp maneja el perfil
-      if (session?.user) {
-        await loadUserProfile(session.user.id);
-      } else {
-        currentUser = null;
+      try {
+        if (_signingUp) return;
+        if (session?.user) {
+          await withTimeout(loadUserProfile(session.user.id), 5000);
+        } else {
+          currentUser = null;
+        }
+        updateAuthUI();
+      } catch (e) {
+        console.warn('Error en onAuthStateChange:', e.message);
       }
-      updateAuthUI();
     });
 
     return true;
@@ -49,42 +78,62 @@ async function signUp(email, password, username) {
   if (!isSupabaseReady()) return { error: 'Supabase no conectado' };
   _signingUp = true;
 
-  // Verificar que el username no exista
-  const { data: existing } = await supabaseClient
-    .from('players')
-    .select('id')
-    .eq('username', username)
-    .maybeSingle();
-
-  if (existing) { _signingUp = false; return { error: 'Ese nombre de usuario ya está en uso' }; }
-
-  // Crear cuenta en Supabase Auth
-  const { data, error } = await supabaseClient.auth.signUp({
-    email,
-    password,
-    options: {
-      data: { username }
-    }
-  });
-
-  if (error) {
-    _signingUp = false;
-    if (error.message.includes('already registered')) {
-      return { error: 'Este email ya tiene una cuenta' };
-    }
-    return { error: error.message };
-  }
-
-  if (data.user) {
-    // Crear perfil en tabla players
-    await supabaseClient
+  try {
+    // Verificar que el username no exista
+    const { data: existing } = await supabaseClient
       .from('players')
-      .insert([{ id: data.user.id, username, email }]);
+      .select('id')
+      .eq('username', username)
+      .maybeSingle();
 
-    // Crear entrada en leaderboard
-    await supabaseClient
+    if (existing) { _signingUp = false; return { error: 'Ese nombre de usuario ya está en uso' }; }
+
+    // Crear cuenta en Supabase Auth
+    console.log('[signUp] Creando cuenta en Auth...');
+    const { data, error } = await withTimeout(
+      supabaseClient.auth.signUp({
+        email,
+        password,
+        options: {
+          data: { username }
+        }
+      })
+    );
+
+    console.log('[signUp] Auth response:', { userId: data?.user?.id, identities: data?.user?.identities?.length, error: error?.message });
+
+    if (error) {
+      _signingUp = false;
+      if (error.message.includes('already registered')) {
+        return { error: 'Este email ya tiene una cuenta. Inicia sesión.' };
+      }
+      return { error: error.message };
+    }
+
+    // Supabase devuelve user con identities vacío si el email ya existe
+    if (!data.user || !data.user.identities || data.user.identities.length === 0) {
+      console.warn('[signUp] Identities vacío — email duplicado');
+      _signingUp = false;
+      return { error: 'Este email ya tiene una cuenta. Inicia sesión.' };
+    }
+
+    console.log('[signUp] User creado:', data.user.id, '— insertando en players...');
+
+    // Crear perfil en tabla players (upsert por si existe parcialmente)
+    const { data: playerData, error: playerErr } = await supabaseClient
+      .from('players')
+      .upsert([{ id: data.user.id, username, email }], { onConflict: 'id' })
+      .select();
+
+    console.log('[signUp] Players result:', { data: playerData, error: playerErr?.message });
+
+    // Crear entrada en leaderboard (upsert)
+    const { data: lbData, error: lbErr } = await supabaseClient
       .from('leaderboard')
-      .insert([{ player_id: data.user.id, score: 0, wins: 0, losses: 0 }]);
+      .upsert([{ player_id: data.user.id, score: 0, wins: 0, losses: 0 }], { onConflict: 'player_id' })
+      .select();
+
+    console.log('[signUp] Leaderboard result:', { data: lbData, error: lbErr?.message });
 
     currentUser = { id: data.user.id, email, username };
     localStorage.setItem('wordle_player_id', data.user.id);
@@ -92,9 +141,11 @@ async function signUp(email, password, username) {
 
     _signingUp = false;
     return { user: currentUser };
+  } catch (e) {
+    console.error('Error en signUp:', e);
+    _signingUp = false;
+    return { error: 'Error de conexión. Inténtalo de nuevo.' };
   }
-  _signingUp = false;
-  return { error: 'Error desconocido al registrarse' };
 }
 
 // ─── Auth: Login ────────────────────────────────────
@@ -102,7 +153,9 @@ async function logIn(email, password) {
   if (!isSupabaseReady()) return { error: 'Supabase no conectado' };
 
   try {
-    const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password });
+    const { data, error } = await withTimeout(
+      supabaseClient.auth.signInWithPassword({ email, password })
+    );
 
     if (error) {
       if (error.message.includes('Invalid login')) {
