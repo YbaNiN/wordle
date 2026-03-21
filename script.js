@@ -139,24 +139,31 @@ async function handleAuth(mode) {
   submitBtn.textContent = 'Cargando...';
   errorEl.textContent = '';
 
-  let result;
-  if (mode === 'signup') {
-    result = await signUp(email, password, username);
-  } else {
-    result = await logIn(email, password);
-  }
+  try {
+    let result;
+    if (mode === 'signup') {
+      result = await signUp(email, password, username);
+    } else {
+      result = await logIn(email, password);
+    }
 
-  if (result.error) {
-    errorEl.textContent = result.error;
+    if (result.error) {
+      errorEl.textContent = result.error;
+      submitBtn.disabled = false;
+      submitBtn.textContent = mode === 'login' ? 'Entrar' : 'Crear cuenta';
+      return;
+    }
+
+    // Éxito
+    hideAllModals();
+    showToast(`¡Bienvenido, ${getCurrentUsername()}!`);
+    updateAuthUI();
+  } catch (e) {
+    console.error('Error en handleAuth:', e);
+    errorEl.textContent = 'Error de conexión. Inténtalo de nuevo.';
     submitBtn.disabled = false;
     submitBtn.textContent = mode === 'login' ? 'Entrar' : 'Crear cuenta';
-    return;
   }
-
-  // Éxito
-  hideAllModals();
-  showToast(`¡Bienvenido, ${getCurrentUsername()}!`);
-  updateAuthUI();
 }
 
 function showProfileModal() {
