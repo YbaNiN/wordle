@@ -12,6 +12,7 @@ let currentUser = null; // { id, email, username }
 let _signingUp = false; // Flag para evitar race condition en onAuthStateChange
 
 function initSupabase() {
+  if (supabaseReady) return true; // Ya inicializado — evitar doble init
   if (typeof window.supabase !== 'undefined' && window.supabase.createClient) {
     supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
     supabaseReady = true;
@@ -28,8 +29,6 @@ function initSupabase() {
       updateAuthUI();
     });
 
-    // Restaurar sesión existente
-    restoreSession();
     return true;
   }
   console.warn('Supabase SDK no disponible — modo offline');
