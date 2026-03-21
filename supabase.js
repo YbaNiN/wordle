@@ -14,16 +14,7 @@ let _signingUp = false; // Flag para evitar race condition en onAuthStateChange
 function initSupabase() {
   if (supabaseReady) return true; // Ya inicializado — evitar doble init
   if (typeof window.supabase !== 'undefined' && window.supabase.createClient) {
-    supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
-      auth: {
-        autoRefreshToken: true,
-        persistSession: true,
-        detectSessionInUrl: true,
-        flowType: 'implicit',
-        // Evitar problemas con navigator.locks
-        lock: (name, acquireTimeout, fn) => fn()
-      }
-    });
+    supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
     supabaseReady = true;
     console.log('Supabase inicializado');
 
