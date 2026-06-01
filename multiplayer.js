@@ -7,6 +7,7 @@ let vsState = {
   roomCode: null,
   channel: null,
   isHost: false,
+  word: null,            // palabra de la partida (se conserva entre fases)
   opponentGuesses: 0,
   opponentDone: false,
   opponentWon: false,
@@ -14,7 +15,8 @@ let vsState = {
   myFinished: false,
   myWon: false,
   myAttempts: 0,
-  startTime: null
+  startTime: null,
+  started: false         // evita arrancar la partida dos veces
 };
 
 // ─── Crear sala ─────────────────────────────────────
@@ -26,8 +28,7 @@ async function createRoom() {
       vsState.matchId = result.match.id;
       vsState.roomCode = result.roomCode;
       vsState.isHost = true;
-      gameState.matchId = result.match.id;
-      gameState.targetWord = word;
+      vsState.word = word;
       showWaitingRoom(result.roomCode);
       subscribeToMatchUpdates(result.match.id);
       return;
@@ -36,7 +37,7 @@ async function createRoom() {
   // Modo local (sin Supabase)
   vsState.roomCode = Math.random().toString(36).slice(2, 8).toUpperCase();
   vsState.isHost = true;
-  gameState.targetWord = word;
+  vsState.word = word;
   showWaitingRoom(vsState.roomCode);
   showToast('Modo local — Supabase no conectado');
 }
@@ -49,8 +50,7 @@ async function joinRoom(code) {
       vsState.matchId = result.match.id;
       vsState.roomCode = code.toUpperCase();
       vsState.isHost = false;
-      gameState.matchId = result.match.id;
-      gameState.targetWord = result.match.word.toUpperCase();
+      vsState.word = result.match.word.toUpperCase();
       subscribeToMatchUpdates(result.match.id);
       startVersusGame();
       return;
@@ -64,17 +64,24 @@ async function joinRoom(code) {
 // ─── Suscribirse a actualizaciones ──────────────────
 function subscribeToMatchUpdates(matchId) {
   vsState.channel = subscribeToMatch(matchId, (payload) => {
-    const { eventType, table, new: record } = payload;
+    const { table, new: record } = payload;
+    const myId = getCurrentPlayer().id;
 
     if (table === 'moves') {
-      const playerId = localStorage.getItem('wordle_player_id');
-      if (record.player_id !== playerId) {
-        vsState.opponentGuesses = record.attempt_number;
-        updateOpponentProgress();
+      if (record.player_id !== myId) {
+        // attempt_number 99 = señal de "el rival terminó (sin ganar)"
+        if (record.attempt_number === 99) {
+          vsState.opponentDone = true;
+          if (vsState.myFinished) showVersusResult();
+        } else {
+          vsState.opponentGuesses = record.attempt_number;
+          updateOpponentProgress();
+        }
       }
     }
 
     if (table === 'matches' && record.status === 'playing') {
+      // El rival se unió: arranca la partida del host.
       if (vsState.isHost) startVersusGame();
     }
 
@@ -86,6 +93,9 @@ function subscribeToMatchUpdates(matchId) {
 
 // ─── Iniciar partida versus ─────────────────────────
 function startVersusGame() {
+  if (vsState.started) return; // evitar arranque doble (host recibía el evento)
+  vsState.started = true;
+
   vsState.startTime = Date.now();
   vsState.opponentGuesses = 0;
   vsState.opponentDone = false;
@@ -99,8 +109,13 @@ function startVersusGame() {
   gameState.gameOver = false;
   gameState.won = false;
   gameState.letterStates = {};
+  // CLAVE: restaurar palabra y matchId (se perdían al resetear gameState)
+  gameState.targetWord = vsState.word;
+  gameState.matchId = vsState.matchId;
 
   hideAllModals();
+  if (typeof hideMenu === 'function') hideMenu();
+  if (typeof showGame === 'function') showGame();
   showVersusUI();
   renderBoard();
   renderKeyboard();
@@ -113,8 +128,15 @@ function handleVersusEnd(won, attempts) {
   vsState.myAttempts = attempts;
 
   if (isSupabaseReady() && vsState.matchId) {
+    const myId = getCurrentPlayer().id;
+    // Notificar mi resultado al rival vía un "move" final.
+    // attempt_number = 99 marca "he terminado"; lo usamos como señal.
+    if (typeof reportVersusFinish === 'function') {
+      reportVersusFinish(vsState.matchId, myId, won, attempts);
+    }
+    // Solo el primero en ACERTAR fija el ganador en la tabla matches.
     if (won) {
-      endMatch(vsState.matchId, localStorage.getItem('wordle_player_id'));
+      endMatch(vsState.matchId, myId);
     }
   }
 
@@ -125,11 +147,19 @@ function handleVersusEnd(won, attempts) {
 }
 
 function handleMatchFinished(record) {
-  const playerId = localStorage.getItem('wordle_player_id');
+  const playerId = getCurrentPlayer().id;
   vsState.opponentDone = true;
-  vsState.opponentWon = record.winner && record.winner !== playerId;
+  // El rival ganó si hay un winner declarado que no soy yo.
+  vsState.opponentWon = !!record.winner && record.winner !== playerId;
 
   if (vsState.myFinished) {
+    showVersusResult();
+  } else if (vsState.opponentWon) {
+    // El rival acertó antes que yo: pierdo aunque no haya agotado intentos.
+    vsState.myFinished = true;
+    vsState.myWon = false;
+    vsState.myAttempts = gameState.guesses.length;
+    gameState.gameOver = true;
     showVersusResult();
   }
 }
@@ -189,7 +219,7 @@ function updateOpponentProgress() {
 }
 
 function showVersusResult() {
-  const elapsed = Date.now() - vsState.startTime;
+  const elapsed = vsState.startTime ? (Date.now() - vsState.startTime) : 0;
   const mins = Math.floor(elapsed / 60000);
   const secs = Math.floor((elapsed % 60000) / 1000);
   const timeStr = `${mins}:${String(secs).padStart(2, '0')}`;
@@ -228,7 +258,7 @@ function showVersusResult() {
       </div>
     </div>
     <div class="modal-actions">
-      <button class="btn btn-primary" onclick="hideAllModals(); showMenu()">Volver al menú</button>
+      <button class="btn btn-primary" onclick="cancelVersus()">Volver al menú</button>
     </div>
   `;
   modal.classList.add('active');
@@ -244,9 +274,9 @@ function cancelVersus() {
   }
   vsState = {
     matchId: null, roomCode: null, channel: null,
-    isHost: false, opponentGuesses: 0, opponentDone: false,
+    isHost: false, word: null, opponentGuesses: 0, opponentDone: false,
     opponentWon: false, opponentTime: null, myFinished: false,
-    myWon: false, myAttempts: 0, startTime: null
+    myWon: false, myAttempts: 0, startTime: null, started: false
   };
   hideAllModals();
   showMenu();

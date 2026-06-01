@@ -5,6 +5,24 @@
 const MAX_ATTEMPTS = 6;
 const WORD_LENGTH = 5;
 
+// ─── Normalización de palabras ──────────────────────
+// El teclado no tiene tildes ni ñ, así que al validar y comparar
+// quitamos los diacríticos y convertimos ñ→n. La palabra original
+// (con tildes) se conserva en gameState.targetWord para mostrarla.
+function normalizeWord(w) {
+  return w
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '') // quita tildes/acentos
+    .replace(/ñ/g, 'n');
+}
+
+// Set precalculado de todas las palabras válidas ya normalizadas.
+// Se construye una sola vez para que isValidWord sea O(1).
+const VALID_WORD_SET = new Set(
+  [...SOLUTIONS, ...VALID_GUESSES].map(normalizeWord)
+);
+
 // Estado del juego
 let gameState = {
   mode: 'daily',        // 'daily' | 'infinite' | 'versus'
@@ -21,10 +39,10 @@ let gameState = {
 
 // ─── Selección de palabra ───────────────────────────
 function getDailyWord() {
-  const epoch = new Date(2024, 0, 1);
-  const today = new Date();
-  const diff = Math.floor((today - epoch) / (1000 * 60 * 60 * 24));
-  const index = diff % SOLUTIONS.length;
+  const epoch = Date.UTC(2024, 0, 1);
+  const now = Date.now();
+  const diff = Math.floor((now - epoch) / (1000 * 60 * 60 * 24));
+  const index = ((diff % SOLUTIONS.length) + SOLUTIONS.length) % SOLUTIONS.length;
   return SOLUTIONS[index].toUpperCase();
 }
 
@@ -34,9 +52,9 @@ function getRandomWord() {
 }
 
 function getDailyNumber() {
-  const epoch = new Date(2024, 0, 1);
-  const today = new Date();
-  return Math.floor((today - epoch) / (1000 * 60 * 60 * 24));
+  const epoch = Date.UTC(2024, 0, 1);
+  const now = Date.now();
+  return Math.floor((now - epoch) / (1000 * 60 * 60 * 24));
 }
 
 // ─── Iniciar juego ──────────────────────────────────
@@ -90,8 +108,10 @@ function initGame(mode = 'daily') {
 
 // ─── Evaluar intento ────────────────────────────────
 function evaluateGuess(guess, target) {
-  const g = guess.toUpperCase().split('');
-  const t = target.toUpperCase().split('');
+  // Comparamos siempre normalizado (sin tildes/ñ) para que MANANA
+  // case con mañana, ARBOL con árbol, etc.
+  const g = normalizeWord(guess).toUpperCase().split('');
+  const t = normalizeWord(target).toUpperCase().split('');
   const result = g.map((letter, i) => ({ letter, state: 'absent', index: i }));
 
   // Primero: letras correctas (verde)
@@ -119,8 +139,7 @@ function evaluateGuess(guess, target) {
 
 // ─── Validar palabra ────────────────────────────────
 function isValidWord(word) {
-  const w = word.toLowerCase();
-  return SOLUTIONS.includes(w) || VALID_GUESSES.includes(w);
+  return VALID_WORD_SET.has(normalizeWord(word));
 }
 
 // ─── Procesar intento ───────────────────────────────
@@ -158,8 +177,8 @@ function submitGuess() {
   revealRow(gameState.currentRow, result, () => {
     updateKeyboard();
 
-    // ¿Ganó?
-    if (guess === gameState.targetWord) {
+    // ¿Ganó? (comparación normalizada: el usuario teclea sin tildes)
+    if (normalizeWord(guess) === normalizeWord(gameState.targetWord)) {
       gameState.won = true;
       gameState.gameOver = true;
       setTimeout(() => {

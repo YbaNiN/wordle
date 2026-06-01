@@ -211,8 +211,15 @@ async function loadUserProfile(userId) {
       .eq('id', userId)
       .maybeSingle();
 
+    // El email vive en auth.users, no en players.
+    let email = '';
+    try {
+      const { data: authData } = await supabaseClient.auth.getUser();
+      email = authData?.user?.email || '';
+    } catch (_) { /* ignorar */ }
+
     if (data) {
-      currentUser = { id: data.id, email: data.email, username: data.username };
+      currentUser = { id: data.id, email, username: data.username };
       localStorage.setItem('wordle_player_id', data.id);
       localStorage.setItem('wordle_username', data.username);
     }
@@ -380,8 +387,27 @@ async function sendMove(matchId, guess, attemptNumber) {
 async function endMatch(matchId, winnerId) {
   if (!isSupabaseReady()) return;
   try {
-    await supabaseClient.from('matches').update({ winner: winnerId, status: 'finished' }).eq('id', matchId);
+    // Solo fijar winner si aún no hay uno (gana quien acierta primero).
+    const { data: current } = await supabaseClient
+      .from('matches').select('winner').eq('id', matchId).maybeSingle();
+    if (current && current.winner) return; // ya hay ganador
+    await supabaseClient.from('matches')
+      .update({ winner: winnerId, status: 'finished' })
+      .eq('id', matchId);
   } catch (e) { console.error('Error finalizando partida:', e); }
+}
+
+// Notifica al rival que he terminado (haya ganado o no) con un move-señal.
+async function reportVersusFinish(matchId, playerId, won, attempts) {
+  if (!isSupabaseReady()) return;
+  try {
+    await supabaseClient.from('moves').insert([{
+      match_id: matchId,
+      player_id: playerId,
+      guess: won ? 'WON' : 'LOST',
+      attempt_number: 99 // señal de "terminé"
+    }]);
+  } catch (e) { console.error('Error reportando fin:', e); }
 }
 
 function unsubscribeFromMatch(channel) {
