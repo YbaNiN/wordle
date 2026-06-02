@@ -499,9 +499,6 @@ function showSettingsModal() {
 
 // ─── Pantalla de fin ────────────────────────────
 function showEndScreen(won) {
-  if (gameState.mode === 'daily') recordResult(won, gameState.guesses.length, 'daily');
-  else if (gameState.mode === 'infinite') recordResult(won, gameState.guesses.length, 'infinite');
-
   const elapsed = Date.now() - gameState.startTime;
   const score = calculateScore(won, gameState.guesses.length, elapsed);
 

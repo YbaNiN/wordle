@@ -70,7 +70,8 @@ function initGame(mode = 'daily') {
     currentRow: 0,
     letterStates: {},
     startTime: Date.now(),
-    matchId: null
+    matchId: null,
+    recorded: false
   };
 
   if (mode === 'daily') {
@@ -82,6 +83,7 @@ function initGame(mode = 'daily') {
       gameState.currentRow = saved.guesses.length;
       gameState.gameOver = saved.gameOver || false;
       gameState.won = saved.won || false;
+      gameState.recorded = saved.recorded || saved.gameOver || false;
       // Reconstruir letterStates
       saved.guesses.forEach(g => {
         const result = evaluateGuess(g, gameState.targetWord);
@@ -143,6 +145,15 @@ function isValidWord(word) {
 }
 
 // ─── Procesar intento ───────────────────────────────
+// Registra el resultado UNA sola vez por partida.
+// Evita que reentrar a una partida diaria ya terminada sume victorias.
+function recordGameResult(won) {
+  if (gameState.recorded) return;       // ya contabilizada
+  if (gameState.mode === 'versus') return; // el versus no toca stats diarias
+  gameState.recorded = true;
+  recordResult(won, gameState.guesses.length, gameState.mode);
+}
+
 function submitGuess() {
   if (gameState.gameOver) return;
   if (gameState.currentGuess.length !== WORD_LENGTH) {
@@ -181,6 +192,7 @@ function submitGuess() {
     if (normalizeWord(guess) === normalizeWord(gameState.targetWord)) {
       gameState.won = true;
       gameState.gameOver = true;
+      recordGameResult(true);
       setTimeout(() => {
         bounceRow(gameState.currentRow - 1);
         showEndScreen(true);
@@ -189,15 +201,17 @@ function submitGuess() {
     // ¿Perdió?
     else if (gameState.guesses.length >= MAX_ATTEMPTS) {
       gameState.gameOver = true;
+      recordGameResult(false);
       setTimeout(() => showEndScreen(false), 600);
     }
 
-    // Guardar estado diario
+    // Guardar estado diario (incluye si ya se contabilizó)
     if (gameState.mode === 'daily') {
       saveDailyState({
         guesses: gameState.guesses,
         gameOver: gameState.gameOver,
-        won: gameState.won
+        won: gameState.won,
+        recorded: gameState.recorded || false
       });
     }
 
