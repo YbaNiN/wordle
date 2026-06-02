@@ -305,23 +305,14 @@ function getLocalLeaderboard() {
 
 async function updateLeaderboard(scoreData) {
   if (!isSupabaseReady() || !isLoggedIn()) return;
-  const playerId = currentUser.id;
   try {
-    const { data: existing } = await supabaseClient
-      .from('leaderboard').select('*').eq('player_id', playerId).maybeSingle();
-
-    if (existing) {
-      await supabaseClient.from('leaderboard').update({
-        score: existing.score + (scoreData.score || 0),
-        wins: existing.wins + (scoreData.win ? 1 : 0),
-        losses: existing.losses + (scoreData.win ? 0 : 1)
-      }).eq('player_id', playerId);
-    } else {
-      await supabaseClient.from('leaderboard').insert([{
-        player_id: playerId, score: scoreData.score || 0,
-        wins: scoreData.win ? 1 : 0, losses: scoreData.win ? 0 : 1
-      }]);
-    }
+    // El score lo calcula el SERVIDOR. El cliente solo informa
+    // si ganó y en cuántos intentos; los puntos no se confían al navegador.
+    const { error } = await supabaseClient.rpc('record_game_result', {
+      p_won: !!scoreData.win,
+      p_attempts: scoreData.attempts || 6
+    });
+    if (error) throw error;
   } catch (e) {
     console.error('Error actualizando leaderboard:', e);
   }
@@ -347,22 +338,36 @@ async function createMatch(word) {
 
 async function joinMatch(roomCode) {
   if (!isSupabaseReady()) return null;
-  const playerId = getCurrentPlayer().id;
   try {
-    const { data: match, error: findErr } = await supabaseClient
-      .from('matches').select('*')
-      .eq('room_code', roomCode.toUpperCase())
-      .eq('status', 'waiting').maybeSingle();
-    if (findErr || !match) return null;
-
-    const { data, error } = await supabaseClient
-      .from('matches')
-      .update({ player2: playerId, status: 'playing' })
-      .eq('id', match.id).select().single();
+    // RPC del servidor: une al jugador y devuelve solo id + status.
+    // Nunca expone la palabra al cliente.
+    const { data, error } = await supabaseClient.rpc('join_match_by_code', {
+      p_code: roomCode.toUpperCase()
+    });
     if (error) throw error;
-    return { match: data };
+    if (!data || data.length === 0) return null; // sala no encontrada
+    const row = data[0];
+    return { match: { id: row.match_id, status: row.status } };
   } catch (e) {
     console.error('Error uniéndose a partida:', e);
+    return null;
+  }
+}
+
+// Evalúa un intento del versus EN EL SERVIDOR. Devuelve { states, won, attempt }
+// sin que el cliente conozca nunca la palabra objetivo.
+async function submitVersusGuess(matchId, guess) {
+  if (!isSupabaseReady()) return null;
+  try {
+    const { data, error } = await supabaseClient.rpc('submit_versus_guess', {
+      p_match_id: matchId,
+      p_guess: guess
+    });
+    if (error) throw error;
+    const row = Array.isArray(data) ? data[0] : data;
+    return { states: row.states, won: row.won, attempt: row.attempt_number, revealWord: row.reveal_word };
+  } catch (e) {
+    console.error('Error evaluando intento:', e);
     return null;
   }
 }

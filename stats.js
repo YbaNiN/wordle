@@ -50,9 +50,9 @@ function recordResult(won, attempts, mode = 'daily') {
   stats.lastPlayed = new Date().toISOString();
   saveStats(stats);
 
-  // Actualizar leaderboard en Supabase
+  // Actualizar leaderboard en Supabase (el SERVIDOR calcula el score)
   if (typeof updateLeaderboard === 'function') {
-    updateLeaderboard({ win: won, score: won ? (7 - attempts) * 100 : 0 });
+    updateLeaderboard({ win: won, attempts: attempts });
   }
   return stats;
 }

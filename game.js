@@ -168,9 +168,30 @@ function submitGuess() {
   }
 
   const guess = gameState.currentGuess.toUpperCase();
-  const result = evaluateGuess(guess, gameState.targetWord);
 
-  // Actualizar estado de letras para teclado
+  // ── VERSUS: la evaluación la hace el SERVIDOR (no exponemos la palabra) ──
+  if (gameState.mode === 'versus') {
+    submitVersusGuessFlow(guess);
+    return;
+  }
+
+  // ── DAILY / INFINITE: evaluación local (no hay rival, sin riesgo) ──
+  const result = evaluateGuess(guess, gameState.targetWord);
+  applyLetterStates(result);
+  gameState.guesses.push(guess);
+
+  revealRow(gameState.currentRow, result, () => {
+    updateKeyboard();
+    const won = normalizeWord(guess) === normalizeWord(gameState.targetWord);
+    finishTurn(won, guess);
+  });
+
+  gameState.currentRow++;
+  gameState.currentGuess = '';
+}
+
+// Aplica colores de un resultado al estado del teclado
+function applyLetterStates(result) {
   result.forEach(r => {
     const prev = gameState.letterStates[r.letter];
     if (r.state === 'correct') {
@@ -181,49 +202,72 @@ function submitGuess() {
       gameState.letterStates[r.letter] = r.state;
     }
   });
+}
 
+// Lógica de fin de turno para daily/infinite
+function finishTurn(won, guess) {
+  if (won) {
+    gameState.won = true;
+    gameState.gameOver = true;
+    recordGameResult(true);
+    setTimeout(() => {
+      bounceRow(gameState.currentRow - 1);
+      showEndScreen(true);
+    }, 300);
+  } else if (gameState.guesses.length >= MAX_ATTEMPTS) {
+    gameState.gameOver = true;
+    recordGameResult(false);
+    setTimeout(() => showEndScreen(false), 600);
+  }
+
+  if (gameState.mode === 'daily') {
+    saveDailyState({
+      guesses: gameState.guesses,
+      gameOver: gameState.gameOver,
+      won: gameState.won,
+      recorded: gameState.recorded || false
+    });
+  }
+}
+
+// Flujo del versus: pide al servidor los colores y luego anima
+async function submitVersusGuessFlow(guess) {
+  // Bloquear input mientras el servidor responde
+  const result = await submitVersusGuess(gameState.matchId, guess);
+  if (!result) {
+    showToast('Error de conexión');
+    return;
+  }
+
+  // Mapear estados del servidor a objetos {letter, state}
+  const evald = guess.split('').map((letter, i) => ({
+    letter, state: result.states[i], index: i
+  }));
+
+  applyLetterStates(evald);
   gameState.guesses.push(guess);
 
-  // Animar revelación
-  revealRow(gameState.currentRow, result, () => {
+  revealRow(gameState.currentRow, evald, () => {
     updateKeyboard();
 
-    // ¿Ganó? (comparación normalizada: el usuario teclea sin tildes)
-    if (normalizeWord(guess) === normalizeWord(gameState.targetWord)) {
+    // El servidor revela la palabra solo al terminar
+    if (result.revealWord) gameState.targetWord = result.revealWord;
+
+    if (result.won) {
       gameState.won = true;
       gameState.gameOver = true;
-      recordGameResult(true);
       setTimeout(() => {
         bounceRow(gameState.currentRow - 1);
-        showEndScreen(true);
+        if (typeof handleVersusEnd === 'function')
+          handleVersusEnd(true, gameState.guesses.length);
       }, 300);
-    }
-    // ¿Perdió?
-    else if (gameState.guesses.length >= MAX_ATTEMPTS) {
+    } else if (gameState.guesses.length >= MAX_ATTEMPTS) {
       gameState.gameOver = true;
-      recordGameResult(false);
-      setTimeout(() => showEndScreen(false), 600);
+      if (typeof handleVersusEnd === 'function')
+        handleVersusEnd(false, gameState.guesses.length);
     }
-
-    // Guardar estado diario (incluye si ya se contabilizó)
-    if (gameState.mode === 'daily') {
-      saveDailyState({
-        guesses: gameState.guesses,
-        gameOver: gameState.gameOver,
-        won: gameState.won,
-        recorded: gameState.recorded || false
-      });
-    }
-
-    // Enviar movimiento multijugador
-    if (gameState.mode === 'versus' && gameState.matchId) {
-      if (typeof sendMove === 'function') {
-        sendMove(gameState.matchId, guess, gameState.guesses.length);
-      }
-      if (gameState.gameOver && typeof handleVersusEnd === 'function') {
-        handleVersusEnd(gameState.won, gameState.guesses.length);
-      }
-    }
+    // El movimiento ya se registró en el servidor (submit_versus_guess),
+    // así que el progreso del rival llega por realtime sin sendMove extra.
   });
 
   gameState.currentRow++;

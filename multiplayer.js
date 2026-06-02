@@ -50,7 +50,7 @@ async function joinRoom(code) {
       vsState.matchId = result.match.id;
       vsState.roomCode = code.toUpperCase();
       vsState.isHost = false;
-      vsState.word = result.match.word.toUpperCase();
+      vsState.word = null; // el que se une NO conoce la palabra (servidor evalúa)
       subscribeToMatchUpdates(result.match.id);
       startVersusGame();
       return;
@@ -109,8 +109,8 @@ function startVersusGame() {
   gameState.gameOver = false;
   gameState.won = false;
   gameState.letterStates = {};
-  // CLAVE: restaurar palabra y matchId (se perdían al resetear gameState)
-  gameState.targetWord = vsState.word;
+  // En versus la palabra la guarda el servidor; se revela al terminar.
+  gameState.targetWord = vsState.word || '';
   gameState.matchId = vsState.matchId;
 
   hideAllModals();
